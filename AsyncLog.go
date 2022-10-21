@@ -25,11 +25,17 @@ func NewLogObject(w io.Writer) *TLog{
 	}
 	return &TLog{
 		dest: w,
+		msgCh:make(chan string),
+		errCh:make(chan error),
+		m: &sync.Mutex{},
 	}
 }
 
 func (logobj TLog) Start(){
-
+   for {
+	   msg:=<-logobj.errCh
+	   go logobj.write(msg,nil)
+   }
 }
 
 func (logobj TLog) formatMessage(msg string) string{
@@ -40,6 +46,27 @@ func (logobj TLog) formatMessage(msg string) string{
 }
 
 func (logobj TLog) write(msg string, wg *sync.WaitGroup){
-
+	logobj.m.Lock()
+	defer logobj.m.Unlock()
+    _,err:=logobj.dest.Write([]byte(logobj.formatMessage(msg)))
+	if err!=nil{
+		go func(err error){
+			logobj.errCh<-err
+		} (err)
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
