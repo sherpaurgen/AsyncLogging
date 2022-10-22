@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 )
-
+//standard log https://cs.opensource.google/go/go/+/master:src/log/log.go
 // Basic logger struct. Use message channel for async logging and writer for synchronous logging
+//template log struct
 type TLog struct {
 	dest             io.Writer
 	m                *sync.Mutex
@@ -28,14 +29,30 @@ func NewLogObject(w io.Writer) *TLog{
 		msgCh:make(chan string),
 		errCh:make(chan error),
 		m: &sync.Mutex{},
+		shutdownCh:make(chan struct{}),
+		shutdownComplete:make(chan struct{}),
 	}
 }
 
 func (logobj TLog) Start(){
-   for {
-	   msg:=<-logobj.errCh
-	   go logobj.write(msg,nil)
+	wg:= &sync.WaitGroup{}
+   loop:
+	for {
+	   select {
+		   case msg := <-logobj.msgCh:
+			    wg.Add(1)
+		   		go logobj.write(msg,wg)
+		   case <-logobj.shutdownCh:
+			   wg.Wait()
+			   logobj.shutdown()
+			   break loop
+	   }
+
    }
+}
+func (logobj TLog) shutdown(){
+	close(logobj.msgCh)
+	logobj.shutdownComplete<- struct{}{}
 }
 
 func (logobj TLog) formatMessage(msg string) string{
@@ -46,6 +63,7 @@ func (logobj TLog) formatMessage(msg string) string{
 }
 
 func (logobj TLog) write(msg string, wg *sync.WaitGroup){
+	defer wg.Done()
 	logobj.m.Lock()
 	defer logobj.m.Unlock()
     _,err:=logobj.dest.Write([]byte(logobj.formatMessage(msg)))
@@ -55,6 +73,28 @@ func (logobj TLog) write(msg string, wg *sync.WaitGroup){
 		} (err)
 	}
 }
+
+func (logobj TLog) Stop(){
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
